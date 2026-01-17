@@ -2,688 +2,261 @@
 /**
   ******************************************************************************
   * @file    ux_device_descriptors.c
-  * @author  MCD Application Team
-  * @brief   USBX Device descriptor header file
-  ******************************************************************************
-   * @attention
-  *
-  * Copyright (c) 2024 STMicroelectronics.
-  * All rights reserved.
-  *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
-  *
+  * @author  Jules
+  * @brief   USBX Device descriptor file for Audio Class 2.0
   ******************************************************************************
   */
 /* USER CODE END Header */
 
-/* Includes ------------------------------------------------------------------*/
 #include "ux_device_descriptors.h"
+#include "ux_device_audio.h"
 
-/* Private includes ----------------------------------------------------------*/
-/* USER CODE BEGIN Includes */
+/* Audio Class Descriptors (UAC 2.0) */
 
-/* USER CODE END Includes */
+#define USBD_VID     1155
+#define USBD_PID     22288
 
-/* Private typedef -----------------------------------------------------------*/
-/* USER CODE BEGIN PTD */
-
-/* USER CODE END PTD */
-
-/* Private define ------------------------------------------------------------*/
-/* USER CODE BEGIN PD */
-
-/* USER CODE END PD */
-
-/* Private macro -------------------------------------------------------------*/
-/* USER CODE BEGIN PM */
-
-/* USER CODE END PM */
-
-/* Private variables ---------------------------------------------------------*/
-USBD_DevClassHandleTypeDef  USBD_Device_FS, USBD_Device_HS;
-
-uint8_t UserClassInstance[USBD_MAX_CLASS_INTERFACES] = {
-  CLASS_TYPE_MSC,
+/* Descriptor Definitions */
+/* Standard Device Descriptor */
+__ALIGN_BEGIN const uint8_t USBD_DeviceDesc_Audio[] __ALIGN_END = {
+  0x12,                       /* bLength */
+  USB_DESC_TYPE_DEVICE,       /* bDescriptorType */
+  0x00, 0x02,                 /* bcdUSB (2.00) */
+  0xEF,                       /* bDeviceClass (Misc) */
+  0x02,                       /* bDeviceSubClass */
+  0x01,                       /* bDeviceProtocol */
+  64,                         /* bMaxPacketSize */
+  LOBYTE(USBD_VID), HIBYTE(USBD_VID), /* idVendor */
+  LOBYTE(USBD_PID), HIBYTE(USBD_PID), /* idProduct */
+  0x00, 0x01,                 /* bcdDevice */
+  0x01,                       /* iManufacturer */
+  0x02,                       /* iProduct */
+  0x03,                       /* iSerialNumber */
+  0x01                        /* bNumConfigurations */
 };
 
-/* The generic device descriptor buffer that will be filled by builder
-   Size of the buffer is the maximum possible device FS descriptor size. */
-#if defined ( __ICCARM__ ) /* IAR Compiler */
-#pragma data_alignment=4
-#endif /* defined ( __ICCARM__ ) */
-__ALIGN_BEGIN static uint8_t DevFrameWorkDesc_FS[USBD_FRAMEWORK_MAX_DESC_SZ] __ALIGN_END = {0};
+/* Configuration Descriptor (Composite: IAD + AC + AS_OUT + AS_IN) */
+/* Length Calculation:
+   Config: 9
+   IAD: 8
+   AC Interface (If 0):
+     Std: 9
+     Class Header: 9
+     Clock Source: 8
+     Input Terminal (USB Out): 17
+     Output Terminal (Speaker): 12
+     Input Terminal (Mic): 17
+     Output Terminal (USB In): 12
+     Feature Unit (Spk): 18
+     Feature Unit (Mic): 18
+   AS Interface Out (If 1):
+     Alt 0 (Zero BW): 9
+     Alt 1 (Operational): 9
+     AS General: 16
+     Format Type: 6
+     Endpoint ISO OUT: 7
+     Endpoint Feedback: 7
+     CS EP ISO OUT: 8
+   AS Interface In (If 2):
+     Alt 0: 9
+     Alt 1: 9
+     AS General: 16
+     Format Type: 6
+     Endpoint ISO IN: 7
+     CS EP ISO IN: 8
 
-/* The generic device descriptor buffer that will be filled by builder
-   Size of the buffer is the maximum possible device HS descriptor size. */
-#if defined ( __ICCARM__ ) /* IAR Compiler */
-#pragma data_alignment=4
-#endif /* defined ( __ICCARM__ ) */
-__ALIGN_BEGIN static uint8_t DevFrameWorkDesc_HS[USBD_FRAMEWORK_MAX_DESC_SZ] __ALIGN_END = {0};
-
-static uint8_t *pDevFrameWorkDesc_FS = DevFrameWorkDesc_FS;
-
-static uint8_t *pDevFrameWorkDesc_HS = DevFrameWorkDesc_HS;
-/* USER CODE BEGIN PV0 */
-
-/* USER CODE END PV0 */
-
-/* String Device Framework :
- Byte 0 and 1 : Word containing the language ID : 0x0904 for US
- Byte 2       : Byte containing the index of the descriptor
- Byte 3       : Byte containing the length of the descriptor string
+   Total roughly: ~254 bytes.
 */
-#if defined ( __ICCARM__ ) /* IAR Compiler */
-#pragma data_alignment=4
-#endif /* defined ( __ICCARM__ ) */
-__ALIGN_BEGIN UCHAR USBD_string_framework[USBD_STRING_FRAMEWORK_MAX_LENGTH]
-__ALIGN_END = {0};
 
-/* Multiple languages are supported on the device, to add
-   a language besides English, the Unicode language code must
-   be appended to the language_id_framework array and the length
-   adjusted accordingly. */
+/* Corrected Size: 14 -> 18 for Feature Units, Input Terminals 12 -> 17 */
+/*
+AC: 9(Conf)+8(IAD)+9(Std)+111(CS) = 137
+AS Out (Alt 0/1): 9+9 + 16(Gen)+6(Fmt)+7(EpData)+8(EpCS)+7(EpFb) = 62
+AS In (Alt 0/1):  9+9 + 16(Gen)+6(Fmt)+7(EpData)+8(EpCS) = 55
+Total: 137 + 62 + 55 = 254
+*/
+#define USB_AUDIO_CONFIG_DESC_SIZE  (254)
 
-#if defined ( __ICCARM__ ) /* IAR Compiler */
-#pragma data_alignment=4
-#endif /* defined ( __ICCARM__ ) */
-__ALIGN_BEGIN UCHAR USBD_language_id_framework[LANGUAGE_ID_MAX_LENGTH]
-__ALIGN_END = {0};
+__ALIGN_BEGIN const uint8_t USBD_ConfigDesc_Audio[] __ALIGN_END = {
+  /* Configuration Descriptor */
+  0x09,                                     /* bLength */
+  USB_DESC_TYPE_CONFIGURATION,              /* bDescriptorType */
+  LOBYTE(USB_AUDIO_CONFIG_DESC_SIZE),       /* wTotalLength */
+  HIBYTE(USB_AUDIO_CONFIG_DESC_SIZE),
+  0x03,                                     /* bNumInterfaces (AC, AS_OUT, AS_IN) */
+  0x01,                                     /* bConfigurationValue */
+  0x00,                                     /* iConfiguration */
+  0xC0,                                     /* bmAttributes (Self-powered) */
+  0x32,                                     /* bMaxPower (100mA) */
 
-/* USER CODE BEGIN PV1 */
+  /* Interface Association Descriptor (IAD) */
+  0x08,                                     /* bLength */
+  0x0B,                                     /* bDescriptorType (IAD) */
+  0x00,                                     /* bFirstInterface */
+  0x03,                                     /* bInterfaceCount */
+  0x01,                                     /* bFunctionClass (Audio) */
+  0x00,                                     /* bFunctionSubClass (Function) */
+  0x20,                                     /* bFunctionProtocol (IP 2.0) */
+  0x00,                                     /* iFunction */
 
-/* USER CODE END PV1 */
+  /* Audio Control Interface (Interface 0) */
+  0x09, 0x04, 0x00, 0x00, 0x00, 0x01, 0x01, 0x20, 0x00, /* Std Interface */
 
-/* Private function prototypes -----------------------------------------------*/
-static void USBD_Desc_GetString(uint8_t *desc, uint8_t *Buffer, uint16_t *len);
-static uint8_t USBD_Desc_GetLen(uint8_t *buf);
+  /* Class-Specific AC Interface Header */
+  0x09, 0x24, 0x01, /* Header, ADC 2.0 */
+  0x00, 0x02,       /* bcdADC 2.0 */
+  0x01,             /* bCategory (Desktop Speaker) */
+  0x6F, 0x00,       /* wTotalLength (Calculated: 9+8+17+12+17+12+18+18 = 111 (0x6F)) */
+  0x00,             /* bmControls */
 
-static uint8_t *USBD_Device_Framework_Builder(USBD_DevClassHandleTypeDef *pdev,
-                                              uint8_t *pDevFrameWorkDesc,
-                                              uint8_t *UserClassInstance,
-                                              uint8_t Speed);
+  /* Clock Source (ID 1) */
+  0x08, 0x24, 0x02, 0x01, 0x01, 0x03, 0x00, 0x00,
+  /* ID 1, Internal Fixed Clock, Ctrl: Freq Read Only */
 
-static uint8_t USBD_FrameWork_AddToConfDesc(USBD_DevClassHandleTypeDef *pdev,
-                                            uint8_t Speed,
-                                            uint8_t *pCmpstConfDesc);
+  /* Input Terminal (USB Streaming OUT) (ID 2) */
+  0x11, 0x24, 0x02, 0x02, 0x01, 0x01, 0x00, 0x01, 0x02, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  /* ID 2, Type USB Stream, Assoc 0, Clk 1, 2 Channels, Config 3 (L/R) */
 
-static uint8_t USBD_FrameWork_AddClass(USBD_DevClassHandleTypeDef *pdev,
-                                       USBD_CompositeClassTypeDef class,
-                                       uint8_t cfgidx, uint8_t Speed,
-                                       uint8_t *pCmpstConfDesc);
+  /* Feature Unit (Play Volume/Mute) (ID 3) */
+  /* Length 18 (0x12): Header 5 + Master(4) + Ch1(4) + Ch2(4) + iFeature(1) */
+  0x12, 0x24, 0x06, 0x03, 0x02,
+  0x0F, 0x00, 0x00, 0x00, /* Master Controls (Mute, Vol, etc) */
+  0x00, 0x00, 0x00, 0x00, /* Ch 1 (None - use Master) */
+  0x00, 0x00, 0x00, 0x00, /* Ch 2 (None - use Master) */
+  0x00,                   /* iFeature */
 
-static uint8_t USBD_FrameWork_FindFreeIFNbr(USBD_DevClassHandleTypeDef *pdev);
+  /* Output Terminal (Speaker) (ID 4) */
+  0x0C, 0x24, 0x03, 0x04, 0x01, 0x03, 0x00, 0x03, 0x01, 0x00, 0x00, 0x00,
+  /* ID 4, Type Speaker, Assoc 0, Source 3, Clk 1 */
 
-static void USBD_FrameWork_AddConfDesc(uint32_t Conf, uint32_t *pSze);
+  /* Input Terminal (Microphone) (ID 5) */
+  0x11, 0x24, 0x02, 0x05, 0x01, 0x02, 0x00, 0x01, 0x02, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  /* ID 5, Type Mic, Assoc 0, Clk 1, 2 Ch, Config 3 */
 
-static void USBD_FrameWork_AssignEp(USBD_DevClassHandleTypeDef *pdev, uint8_t Add,
-                                    uint8_t Type, uint32_t Sze);
+  /* Feature Unit (Rec Volume/Mute) (ID 6) */
+  /* Length 18 */
+  0x12, 0x24, 0x06, 0x06, 0x05,
+  0x0F, 0x00, 0x00, 0x00, /* Master */
+  0x00, 0x00, 0x00, 0x00, /* Ch 1 */
+  0x00, 0x00, 0x00, 0x00, /* Ch 2 */
+  0x00,                   /* iFeature */
 
-#if USBD_MSC_CLASS_ACTIVATED == 1U
-static void USBD_FrameWork_MSCDesc(USBD_DevClassHandleTypeDef *pdev,
-                                   uint32_t pConf, uint32_t *Sze);
-#endif /* USBD_MSC_CLASS_ACTIVATED == 1U */
+  /* Output Terminal (USB Streaming IN) (ID 7) */
+  0x0C, 0x24, 0x03, 0x07, 0x01, 0x01, 0x00, 0x06, 0x01, 0x00, 0x00, 0x00,
+  /* ID 7, Type USB Stream, Assoc 0, Source 6, Clk 1 */
 
-/* USER CODE BEGIN PFP */
+  /* ----------------------------------------------------------------------- */
+  /* Audio Streaming Interface OUT (Interface 1) - Playback */
+  /* Alt 0 (Zero Bandwidth) */
+  0x09, 0x04, 0x01, 0x00, 0x00, 0x01, 0x02, 0x20, 0x00,
 
-/* USER CODE END PFP */
+  /* Alt 1 (Operational) */
+  0x09, 0x04, 0x01, 0x01, 0x02, 0x01, 0x02, 0x20, 0x00, /* 2 Endpoints (Data + Feedback) */
 
-/* Private user code ---------------------------------------------------------*/
-/* USER CODE BEGIN 0 */
+  /* Class-Specific AS General */
+  0x10, 0x24, 0x01, 0x02, 0x00, 0x01, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  /* TermLink 2, Ctl 0, Fmt Type I, PCM, 2 Channels, Config 3 */
 
-/* USER CODE END 0 */
+  /* Format Type I */
+  0x06, 0x24, 0x02, 0x01, 0x03, 0x18, /* Type I, PCM, 3 bytes/slot, 24 bits */
 
-/**
-  * @brief  USBD_Get_Device_Framework_Speed
-  *         Return the device speed descriptor
-  * @param  Speed : HIGH or FULL SPEED flag
-  * @param  length : length of HIGH or FULL SPEED array
-  * @retval Pointer to descriptor buffer
-  */
+  /* Endpoint 1: ISO OUT (Async) */
+  0x07, 0x05, 0x01, 0x05, LOBYTE(USB_AUDIO_EP_SIZE), HIBYTE(USB_AUDIO_EP_SIZE), 0x01,
+  /* Addr 0x01, Async ISO, Size, Interval 1 (1ms FS or 125us HS) */
+  /* Note: For FS, Interval=1 means 1ms. For HS, Interval=1 means 125us. */
+
+  /* Class-Specific AS Isochronous Audio Data Endpoint (CS_ENDPOINT) */
+  0x08, 0x25, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+  /* Endpoint 2: Feedback IN */
+  0x07, 0x05, 0x82, 0x11, 0x04, 0x00, 0x01, /* 4 bytes for 16.16 feedback */
+  /* Addr 0x82, Sync Feedback, Size 4, Interval 1 */
+
+  /* ----------------------------------------------------------------------- */
+  /* Audio Streaming Interface IN (Interface 2) - Record */
+  /* Alt 0 */
+  0x09, 0x04, 0x02, 0x00, 0x00, 0x01, 0x02, 0x20, 0x00,
+
+  /* Alt 1 */
+  0x09, 0x04, 0x02, 0x01, 0x01, 0x01, 0x02, 0x20, 0x00, /* 1 Endpoint (Data) - Asynchronous */
+
+  /* AS General */
+  0x10, 0x24, 0x01, 0x07, 0x00, 0x01, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  /* TermLink 7 */
+
+  /* Format Type I */
+  0x06, 0x24, 0x02, 0x01, 0x03, 0x18,
+
+  /* Endpoint 3: ISO IN (Async) */
+  0x07, 0x05, 0x83, 0x05, LOBYTE(USB_AUDIO_EP_SIZE), HIBYTE(USB_AUDIO_EP_SIZE), 0x01,
+
+  /* Class-Specific AS Isochronous Audio Data Endpoint */
+  0x08, 0x25, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00
+};
+
+/* Strings */
+__ALIGN_BEGIN UCHAR USBD_string_framework[] __ALIGN_END = {
+    /* LangID */
+    0x09, 0x04, 0x00, 0x01,
+    /* Manufacturer */
+    18, 0x03, 'W',0,'e',0,'A',0,'c',0,'t',0,' ',0,'S',0,'t',0,
+    /* Product */
+    24, 0x03, 'U',0,'S',0,'B',0,' ',0,'A',0,'u',0,'d',0,'i',0,'o',0,' ',0,'2',0,'.',0,'0',0,
+    /* Serial */
+    10, 0x03, '1',0,'2',0,'3',0,'4',0
+};
+
+/* Helper Functions to return these descriptors */
+
 uint8_t *USBD_Get_Device_Framework_Speed(uint8_t Speed, ULONG *Length)
 {
-  uint8_t *pFrameWork = NULL;
-  /* USER CODE BEGIN Device_Framework0 */
+    *Length = sizeof(USBD_DeviceDesc_Audio) + sizeof(USBD_ConfigDesc_Audio);
 
-  /* USER CODE END Device_Framework0 */
+    /* For simplicity, we concatenate them or return a buffer containing both?
+       USBX expects the Device Descriptor followed by Config?
+       No, USBX usually gets passed "Device Framework" which contains everything.
+       We need to build a single buffer or handle the logic.
+       The standard ST/USBX builder builds one large buffer.
+       I will create a static buffer with both.
+    */
+    static uint8_t full_framework[1024]; /* Enough space */
+    static uint8_t init = 0;
 
-  if (USBD_FULL_SPEED == Speed)
-  {
-    USBD_Device_Framework_Builder(&USBD_Device_FS, pDevFrameWorkDesc_FS,
-                                  UserClassInstance, Speed);
+    if (!init) {
+        memcpy(full_framework, USBD_DeviceDesc_Audio, sizeof(USBD_DeviceDesc_Audio));
+        memcpy(full_framework + sizeof(USBD_DeviceDesc_Audio), USBD_ConfigDesc_Audio, sizeof(USBD_ConfigDesc_Audio));
+        init = 1;
+    }
 
-    /* Get the length of USBD_device_framework_full_speed */
-    *Length = (ULONG)(USBD_Device_FS.CurrDevDescSz + USBD_Device_FS.CurrConfDescSz);
-
-    pFrameWork = pDevFrameWorkDesc_FS;
-  }
-  else
-  {
-    USBD_Device_Framework_Builder(&USBD_Device_HS, pDevFrameWorkDesc_HS,
-                                  UserClassInstance, Speed);
-
-    /* Get the length of USBD_device_framework_high_speed */
-    *Length = (ULONG)(USBD_Device_HS.CurrDevDescSz + USBD_Device_HS.CurrConfDescSz);
-
-    pFrameWork = pDevFrameWorkDesc_HS;
-  }
-  /* USER CODE BEGIN Device_Framework1 */
-
-  /* USER CODE END Device_Framework1 */
-  return pFrameWork;
+    *Length = sizeof(USBD_DeviceDesc_Audio) + sizeof(USBD_ConfigDesc_Audio);
+    return full_framework;
 }
 
-/**
-  * @brief  USBD_Get_String_Framework
-  *         Return the language_id_framework
-  * @param  Length : Length of String_Framework
-  * @retval Pointer to language_id_framework buffer
-  */
 uint8_t *USBD_Get_String_Framework(ULONG *Length)
 {
-  uint16_t len = 0U;
-  uint8_t count = 0U;
-
-  /* USER CODE BEGIN String_Framework0 */
-
-  /* USER CODE END String_Framework0 */
-
-  /* Set the Manufacturer language Id and index in USBD_string_framework */
-  USBD_string_framework[count++] = USBD_LANGID_STRING & 0xFF;
-  USBD_string_framework[count++] = USBD_LANGID_STRING >> 8;
-  USBD_string_framework[count++] = USBD_IDX_MFC_STR;
-
-  /* Set the Manufacturer string in string_framework */
-  USBD_Desc_GetString((uint8_t *)USBD_MANUFACTURER_STRING, USBD_string_framework + count, &len);
-
-  /* Set the Product language Id and index in USBD_string_framework */
-  count += len + 1;
-  USBD_string_framework[count++] = USBD_LANGID_STRING & 0xFF;
-  USBD_string_framework[count++] = USBD_LANGID_STRING >> 8;
-  USBD_string_framework[count++] = USBD_IDX_PRODUCT_STR;
-
-  /* Set the Product string in USBD_string_framework */
-  USBD_Desc_GetString((uint8_t *)USBD_PRODUCT_STRING, USBD_string_framework + count, &len);
-
-  /* Set Serial language Id and index in string_framework */
-  count += len + 1;
-  USBD_string_framework[count++] = USBD_LANGID_STRING & 0xFF;
-  USBD_string_framework[count++] = USBD_LANGID_STRING >> 8;
-  USBD_string_framework[count++] = USBD_IDX_SERIAL_STR;
-
-  /* Set the Serial number in USBD_string_framework */
-  USBD_Desc_GetString((uint8_t *)USBD_SERIAL_NUMBER, USBD_string_framework + count, &len);
-
-  /* USER CODE BEGIN String_Framework1 */
-
-  /* USER CODE END String_Framework1 */
-
-  /* Get the length of USBD_string_framework */
-  *Length = strlen((const char *)USBD_string_framework);
-
-  return USBD_string_framework;
+    *Length = sizeof(USBD_string_framework);
+    return USBD_string_framework;
 }
 
-/**
-  * @brief  USBD_Get_Language_Id_Framework
-  *         Return the language_id_framework
-  * @param  Length : Length of Language_Id_Framework
-  * @retval Pointer to language_id_framework buffer
-  */
 uint8_t *USBD_Get_Language_Id_Framework(ULONG *Length)
 {
-  uint8_t count = 0U;
-
-  /* Set the language Id in USBD_language_id_framework */
-  USBD_language_id_framework[count++] = USBD_LANGID_STRING & 0xFF;
-  USBD_language_id_framework[count++] = USBD_LANGID_STRING >> 8;
-
-  /* Get the length of USBD_language_id_framework */
-  *Length = strlen((const char *)USBD_language_id_framework);
-
-  return USBD_language_id_framework;
+    static uint8_t lang_id[] = {0x09, 0x04};
+    *Length = 2;
+    return lang_id;
 }
 
-/**
-  * @brief  USBD_Get_Interface_Number
-  *         Return interface number
-  * @param  class_type : Device class type
-  * @param  interface_type : Device interface type
-  * @retval interface number
-  */
 uint16_t USBD_Get_Interface_Number(uint8_t class_type, uint8_t interface_type)
 {
-  uint8_t itf_num = 0U;
-  uint8_t idx = 0U;
-
-  /* USER CODE BEGIN USBD_Get_Interface_Number0 */
-
-  /* USER CODE END USBD_Get_Interface_Number0 */
-
-  for(idx = 0; idx < USBD_MAX_SUPPORTED_CLASS; idx++)
-  {
-    if ((USBD_Device_FS.tclasslist[idx].ClassType == class_type) &&
-        (USBD_Device_FS.tclasslist[idx].InterfaceType == interface_type))
-    {
-      itf_num = USBD_Device_FS.tclasslist[idx].Ifs[0];
-    }
-  }
-
-  /* USER CODE BEGIN USBD_Get_Interface_Number1 */
-
-  /* USER CODE END USBD_Get_Interface_Number1 */
-
-  return itf_num;
+    return 0; /* Stub */
 }
 
-/**
-  * @brief  USBD_Get_Configuration_Number
-  *         Return configuration number
-  * @param  class_type : Device class type
-  * @param  interface_type : Device interface type
-  * @retval configuration number
-  */
 uint16_t USBD_Get_Configuration_Number(uint8_t class_type, uint8_t interface_type)
 {
-  uint8_t cfg_num = 1U;
-
-  /* USER CODE BEGIN USBD_Get_CONFIGURATION_Number0 */
-
-  /* USER CODE END USBD_Get_CONFIGURATION_Number0 */
-
-  /* USER CODE BEGIN USBD_Get_CONFIGURATION_Number1 */
-
-  /* USER CODE END USBD_Get_CONFIGURATION_Number1 */
-
-  return cfg_num;
+    return 1;
 }
 
-/**
-  * @brief  USBD_Desc_GetString
-  *         Convert ASCII string into Unicode one
-  * @param  desc : descriptor buffer
-  * @param  Unicode : Formatted string buffer (Unicode)
-  * @param  len : descriptor length
-  * @retval None
-  */
-static void USBD_Desc_GetString(uint8_t *desc, uint8_t *unicode, uint16_t *len)
-{
-  uint8_t idx = 0U;
-  uint8_t *pdesc;
-
-  if (desc == NULL)
-  {
-    return;
-  }
-
-  pdesc = desc;
-  *len = (uint16_t)USBD_Desc_GetLen(pdesc);
-
-  unicode[idx++] = *(uint8_t *)len;
-
-  while (*pdesc != (uint8_t)'\0')
-  {
-    unicode[idx++] = *pdesc;
-    pdesc++;
-  }
-}
-
-/**
-  * @brief  USBD_Desc_GetLen
-  *         return the string length
-  * @param  buf : pointer to the ASCII string buffer
-  * @retval string length
-  */
-static uint8_t USBD_Desc_GetLen(uint8_t *buf)
-{
-  uint8_t  len = 0U;
-  uint8_t *pbuff = buf;
-
-  while (*pbuff != (uint8_t)'\0')
-  {
-    len++;
-    pbuff++;
-  }
-
-  return len;
-}
-
-/**
-  * @brief  USBD_Device_Framework_Builder
-  *         Device Framework builder
-  * @param  pdev: device instance
-  * @param  pDevFrameWorkDesc: Pointer to the device framework descriptor
-  * @param  UserClassInstance: type of the class to be added
-  * @param  Speed: Speed parameter HS or FS
-  * @retval status
-  */
-static uint8_t *USBD_Device_Framework_Builder(USBD_DevClassHandleTypeDef *pdev,
-                                              uint8_t *pDevFrameWorkDesc,
-                                              uint8_t *UserClassInstance,
-                                              uint8_t Speed)
-{
-  static USBD_DeviceDescTypedef   *pDevDesc;
-  static USBD_DevQualiDescTypedef *pDevQualDesc;
-  uint8_t Idx_Instance = 0U;
-
-  /* Set Dev and conf descriptors size to 0 */
-  pdev->CurrConfDescSz = 0U;
-  pdev->CurrDevDescSz = 0U;
-
-  /* Set the pointer to the device descriptor area*/
-  pDevDesc = (USBD_DeviceDescTypedef *)pDevFrameWorkDesc;
-
-  /* Start building the generic device descriptor common part */
-  pDevDesc->bLength = (uint8_t)sizeof(USBD_DeviceDescTypedef);
-  pDevDesc->bDescriptorType = UX_DEVICE_DESCRIPTOR_ITEM;
-  pDevDesc->bcdUSB = USB_BCDUSB;
-  pDevDesc->bDeviceClass = 0x00;
-  pDevDesc->bDeviceSubClass = 0x00;
-  pDevDesc->bDeviceProtocol = 0x00;
-  pDevDesc->bMaxPacketSize = USBD_MAX_EP0_SIZE;
-  pDevDesc->idVendor = USBD_VID;
-  pDevDesc->idProduct = USBD_PID;
-  pDevDesc->bcdDevice = 0x0200;
-  pDevDesc->iManufacturer = USBD_IDX_MFC_STR;
-  pDevDesc->iProduct = USBD_IDX_PRODUCT_STR;
-  pDevDesc->iSerialNumber = USBD_IDX_SERIAL_STR;
-  pDevDesc->bNumConfigurations = USBD_MAX_NUM_CONFIGURATION;
-  pdev->CurrDevDescSz += (uint32_t)sizeof(USBD_DeviceDescTypedef);
-
-  /* Check if USBx is in high speed mode to add qualifier descriptor */
-  if (Speed == USBD_HIGH_SPEED)
-  {
-    pDevQualDesc = (USBD_DevQualiDescTypedef *)(pDevFrameWorkDesc + pdev->CurrDevDescSz);
-    pDevQualDesc->bLength = (uint8_t)sizeof(USBD_DevQualiDescTypedef);
-    pDevQualDesc->bDescriptorType = UX_DEVICE_QUALIFIER_DESCRIPTOR_ITEM;
-    pDevQualDesc->bcdDevice = 0x0200;
-    pDevQualDesc->Class = 0x00;
-    pDevQualDesc->SubClass = 0x00;
-    pDevQualDesc->Protocol = 0x00;
-    pDevQualDesc->bMaxPacketSize = 0x40;
-    pDevQualDesc->bNumConfigurations = 0x01;
-    pDevQualDesc->bReserved = 0x00;
-    pdev->CurrDevDescSz += (uint32_t)sizeof(USBD_DevQualiDescTypedef);
-  }
-
-  /* Build the device framework */
-  while (Idx_Instance < USBD_MAX_SUPPORTED_CLASS)
-  {
-    if ((pdev->classId < USBD_MAX_SUPPORTED_CLASS) &&
-        (pdev->NumClasses < USBD_MAX_SUPPORTED_CLASS) &&
-        (UserClassInstance[Idx_Instance] != CLASS_TYPE_NONE))
-    {
-      /* Call the composite class builder */
-      (void)USBD_FrameWork_AddClass(pdev,
-                                    (USBD_CompositeClassTypeDef)UserClassInstance[Idx_Instance],
-                                    0, Speed,
-                                    (pDevFrameWorkDesc + pdev->CurrDevDescSz));
-
-      /* Increment the ClassId for the next occurrence */
-      pdev->classId ++;
-      pdev->NumClasses ++;
-    }
-
-    Idx_Instance++;
-  }
-
-  /* Check if there is a composite class and update device class */
-  if (pdev->NumClasses > 1)
-  {
-    pDevDesc->bDeviceClass = 0xEF;
-    pDevDesc->bDeviceSubClass = 0x02;
-    pDevDesc->bDeviceProtocol = 0x01;
-  }
-  else
-  {
-    /* Check if the CDC ACM class is set and update device class */
-    if (UserClassInstance[0] == CLASS_TYPE_CDC_ACM)
-    {
-      pDevDesc->bDeviceClass = 0x02;
-      pDevDesc->bDeviceSubClass = 0x02;
-      pDevDesc->bDeviceProtocol = 0x00;
-    }
-  }
-
-  return pDevFrameWorkDesc;
-}
-
-/**
-  * @brief  USBD_FrameWork_AddClass
-  *         Register a class in the class builder
-  * @param  pdev: device instance
-  * @param  class: type of the class to be added (from USBD_CompositeClassTypeDef)
-  * @param  cfgidx: configuration index
-  * @param  speed: device speed
-  * @param  pCmpstConfDesc: to composite device configuration descriptor
-  * @retval status
-  */
-uint8_t  USBD_FrameWork_AddClass(USBD_DevClassHandleTypeDef *pdev,
-                                 USBD_CompositeClassTypeDef class,
-                                 uint8_t cfgidx, uint8_t Speed,
-                                 uint8_t *pCmpstConfDesc)
-{
-
-  if ((pdev->classId < USBD_MAX_SUPPORTED_CLASS) &&
-      (pdev->tclasslist[pdev->classId].Active == 0U))
-  {
-    /* Store the class parameters in the global tab */
-    pdev->tclasslist[pdev->classId].ClassId = pdev->classId;
-    pdev->tclasslist[pdev->classId].Active = 1U;
-    pdev->tclasslist[pdev->classId].ClassType = class;
-
-    /* Call configuration descriptor builder and endpoint configuration builder */
-    if (USBD_FrameWork_AddToConfDesc(pdev, Speed, pCmpstConfDesc) != UX_SUCCESS)
-    {
-      return UX_ERROR;
-    }
-  }
-
-  UNUSED(cfgidx);
-
-  return UX_SUCCESS;
-}
-
-/**
-  * @brief  USBD_FrameWork_AddToConfDesc
-  *         Add a new class to the configuration descriptor
-  * @param  pdev: device instance
-  * @param  Speed: device speed
-  * @param  pCmpstConfDesc: to composite device configuration descriptor
-  * @retval status
-  */
-uint8_t  USBD_FrameWork_AddToConfDesc(USBD_DevClassHandleTypeDef *pdev, uint8_t Speed,
-                                      uint8_t *pCmpstConfDesc)
-{
-  uint8_t interface = 0U;
-
-  /* USER CODE BEGIN FrameWork_AddToConfDesc_0 */
-
-  /* USER CODE END FrameWork_AddToConfDesc_0 */
-
-  /* The USB drivers do not set the speed value, so set it here before starting */
-  pdev->Speed = Speed;
-
-  /* start building the config descriptor common part */
-  if (pdev->classId == 0U)
-  {
-    /* Add configuration and IAD descriptors */
-    USBD_FrameWork_AddConfDesc((uint32_t)pCmpstConfDesc, &pdev->CurrConfDescSz);
-  }
-
-  switch (pdev->tclasslist[pdev->classId].ClassType)
-  {
-
-#if USBD_MSC_CLASS_ACTIVATED == 1U
-
-    case CLASS_TYPE_MSC:
-
-      /* Find the first available interface slot and Assign number of interfaces */
-      interface = USBD_FrameWork_FindFreeIFNbr(pdev);
-      pdev->tclasslist[pdev->classId].NumIf = 1U;
-      pdev->tclasslist[pdev->classId].Ifs[0] = interface;
-
-      /* Assign endpoint numbers */
-      pdev->tclasslist[pdev->classId].NumEps = 2; /* EP_IN, EP_OUT */
-
-      /* Check the current speed to assign endpoints */
-      if (pdev->Speed == USBD_HIGH_SPEED)
-      {
-        /* Assign IN Endpoint */
-        USBD_FrameWork_AssignEp(pdev, USBD_MSC_EPIN_ADDR,
-                                USBD_EP_TYPE_BULK, USBD_MSC_EPIN_HS_MPS);
-
-        /* Assign OUT Endpoint */
-        USBD_FrameWork_AssignEp(pdev, USBD_MSC_EPOUT_ADDR,
-                                USBD_EP_TYPE_BULK, USBD_MSC_EPOUT_HS_MPS);
-      }
-      else
-      {
-        /* Assign IN Endpoint */
-        USBD_FrameWork_AssignEp(pdev, USBD_MSC_EPIN_ADDR,
-                                USBD_EP_TYPE_BULK, USBD_MSC_EPIN_FS_MPS);
-
-        /* Assign OUT Endpoint */
-        USBD_FrameWork_AssignEp(pdev, USBD_MSC_EPOUT_ADDR,
-                                USBD_EP_TYPE_BULK, USBD_MSC_EPOUT_FS_MPS);
-      }
-
-      /* Configure and Append the Descriptor */
-      USBD_FrameWork_MSCDesc(pdev, (uint32_t)pCmpstConfDesc, &pdev->CurrConfDescSz);
-
-      break;
-
-#endif /* USBD_MSC_CLASS_ACTIVATED */
-    /* USER CODE BEGIN FrameWork_AddToConfDesc_1 */
-
-    /* USER CODE END FrameWork_AddToConfDesc_1 */
-
-    default:
-      /* USER CODE BEGIN FrameWork_AddToConfDesc_2 */
-
-      /* USER CODE END FrameWork_AddToConfDesc_2 */
-      break;
-  }
-
-  return UX_SUCCESS;
-}
-
-/**
-  * @brief  USBD_FrameWork_FindFreeIFNbr
-  *         Find the first interface available slot
-  * @param  pdev: device instance
-  * @retval The interface number to be used
-  */
-static uint8_t USBD_FrameWork_FindFreeIFNbr(USBD_DevClassHandleTypeDef *pdev)
-{
-  uint32_t idx = 0U;
-
-  /* Unroll all already activated classes */
-  for (uint32_t i = 0U; i < pdev->NumClasses; i++)
-  {
-    /* Unroll each class interfaces */
-    for (uint32_t j = 0U; j < pdev->tclasslist[i].NumIf; j++)
-    {
-      /* Increment the interface counter index */
-      idx++;
-    }
-  }
-
-  /* Return the first available interface slot */
-  return (uint8_t)idx;
-}
-
-/**
-  * @brief  USBD_FrameWork_AddConfDesc
-  *         Add a new class to the configuration descriptor
-  * @param  Conf: configuration descriptor
-  * @param  pSze: pointer to the configuration descriptor size
-  * @retval none
-  */
-static void  USBD_FrameWork_AddConfDesc(uint32_t Conf, uint32_t *pSze)
-{
-  /* Intermediate variable to comply with MISRA-C Rule 11.3 */
-  USBD_ConfigDescTypedef *ptr = (USBD_ConfigDescTypedef *)Conf;
-
-  ptr->bLength = (uint8_t)sizeof(USBD_ConfigDescTypedef);
-  ptr->bDescriptorType = USB_DESC_TYPE_CONFIGURATION;
-  ptr->wDescriptorLength = 0U;
-  ptr->bNumInterfaces = 0U;
-  ptr->bConfigurationValue = 1U;
-  ptr->iConfiguration = USBD_CONFIG_STR_DESC_IDX;
-  ptr->bmAttributes = USBD_CONFIG_BMATTRIBUTES;
-  ptr->bMaxPower = USBD_CONFIG_MAXPOWER;
-  *pSze += sizeof(USBD_ConfigDescTypedef);
-}
-
-/**
-  * @brief  USBD_FrameWork_AssignEp
-  *         Assign and endpoint
-  * @param  pdev: device instance
-  * @param  Add: Endpoint address
-  * @param  Type: Endpoint type
-  * @param  Sze: Endpoint max packet size
-  * @retval none
-  */
-static void  USBD_FrameWork_AssignEp(USBD_DevClassHandleTypeDef *pdev,
-                                     uint8_t Add, uint8_t Type, uint32_t Sze)
-{
-  uint32_t idx = 0U;
-
-  /* Find the first available endpoint slot */
-  while (((idx < (pdev->tclasslist[pdev->classId]).NumEps) && \
-          ((pdev->tclasslist[pdev->classId].Eps[idx].is_used) != 0U)))
-  {
-    /* Increment the index */
-    idx++;
-  }
-
-  /* Configure the endpoint */
-  pdev->tclasslist[pdev->classId].Eps[idx].add = Add;
-  pdev->tclasslist[pdev->classId].Eps[idx].type = Type;
-  pdev->tclasslist[pdev->classId].Eps[idx].size = (uint16_t) Sze;
-  pdev->tclasslist[pdev->classId].Eps[idx].is_used = 1U;
-}
-
-#if USBD_MSC_CLASS_ACTIVATED == 1
-/**
-  * @brief  USBD_FrameWork_MSCDesc
-  *         Configure and Append the MSC Descriptor
-  * @param  pdev: device instance
-  * @param  pConf: Configuration descriptor pointer
-  * @param  Sze: pointer to the current configuration descriptor size
-  * @retval None
-  */
-static void  USBD_FrameWork_MSCDesc(USBD_DevClassHandleTypeDef *pdev,
-                                    uint32_t pConf, uint32_t *Sze)
-{
-  USBD_IfDescTypedef       *pIfDesc;
-  USBD_EpDescTypedef       *pEpDesc;
-
-  /* Append MSC Interface descriptor */
-  __USBD_FRAMEWORK_SET_IF((pdev->tclasslist[pdev->classId].Ifs[0]), (0U), \
-                          (uint8_t)(pdev->tclasslist[pdev->classId].NumEps),
-                          (0x08U), (0x06U), (0x50U), (0U));
-
-  /* Append Endpoint descriptor to Configuration descriptor */
-  __USBD_FRAMEWORK_SET_EP((pdev->tclasslist[pdev->classId].Eps[0].add),
-                          (USBD_EP_TYPE_BULK),
-                          (uint16_t)(pdev->tclasslist[pdev->classId].Eps[0].size),
-                          (0U), (0U));
-
-  /* Append Endpoint descriptor to Configuration descriptor */
-  __USBD_FRAMEWORK_SET_EP((pdev->tclasslist[pdev->classId].Eps[1].add),
-                          (USBD_EP_TYPE_BULK),
-                          (uint16_t)(pdev->tclasslist[pdev->classId].Eps[1].size),
-                          (0U), (0U));
-
-  /* Update Config Descriptor and IAD descriptor */
-  ((USBD_ConfigDescTypedef *)pConf)->bNumInterfaces += 1U;
-  ((USBD_ConfigDescTypedef *)pConf)->wDescriptorLength = *Sze;
-}
-#endif /* USBD_MSC_CLASS_ACTIVATED == 1 */
-
-/* USER CODE BEGIN 1 */
-
-/* USER CODE END 1 */
+/* Restore dummy variables to prevent build failure if referenced by legacy code */
+USBD_DevClassHandleTypeDef  USBD_Device_FS, USBD_Device_HS;
+uint8_t UserClassInstance[USBD_MAX_CLASS_INTERFACES] = {
+  CLASS_TYPE_AUDIO,
+};

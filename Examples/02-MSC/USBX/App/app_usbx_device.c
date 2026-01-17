@@ -23,7 +23,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "ux_device_audio.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -50,9 +50,8 @@
 #pragma data_alignment=4
 #endif
 __ALIGN_BEGIN static UCHAR ux_device_byte_pool_buffer[UX_DEVICE_APP_MEM_POOL_SIZE] __ALIGN_END;
-static ULONG storage_interface_number;
-static ULONG storage_configuration_number;
-static UX_SLAVE_CLASS_STORAGE_PARAMETER storage_parameter;
+/* Audio Parameters */
+static UX_SLAVE_CLASS_AUDIO_PARAMETER audio_parameter;
 
 /* USER CODE BEGIN PV */
 
@@ -124,64 +123,41 @@ UINT MX_USBX_Device_Init(VOID)
     /* USER CODE END USBX_DEVICE_INITIALIZE_ERROR */
   }
 
-  /* Initialize the storage class parameters for the device */
-  storage_parameter.ux_slave_class_storage_instance_activate   = USBD_STORAGE_Activate;
-  storage_parameter.ux_slave_class_storage_instance_deactivate = USBD_STORAGE_Deactivate;
+  /* Initialize the Audio Class */
+  /* We register the class with configuration 1 and interface 0 (Audio Control)
+     The class driver will handle the other interfaces (Stream) */
 
-  /* Store the number of LUN in this device storage instance */
-  storage_parameter.ux_slave_class_storage_parameter_number_lun = STORAGE_NUMBER_LUN;
+  /* Note: _ux_system_slave_class_audio_name is not defined because the lib is missing.
+     We pass a custom string. */
 
-  /* Initialize the storage class parameters for reading/writing to the Flash Disk */
-  storage_parameter.ux_slave_class_storage_parameter_lun[0].
-    ux_slave_class_storage_media_last_lba = USBD_STORAGE_GetMediaLastLba();
-
-  storage_parameter.ux_slave_class_storage_parameter_lun[0].
-    ux_slave_class_storage_media_block_length = USBD_STORAGE_GetMediaBlocklength();
-
-  storage_parameter.ux_slave_class_storage_parameter_lun[0].
-    ux_slave_class_storage_media_type = 0;
-
-  storage_parameter.ux_slave_class_storage_parameter_lun[0].
-    ux_slave_class_storage_media_removable_flag = STORAGE_REMOVABLE_FLAG;
-
-  storage_parameter.ux_slave_class_storage_parameter_lun[0].
-    ux_slave_class_storage_media_read_only_flag = STORAGE_READ_ONLY;
-
-  storage_parameter.ux_slave_class_storage_parameter_lun[0].
-    ux_slave_class_storage_media_read = USBD_STORAGE_Read;
-
-  storage_parameter.ux_slave_class_storage_parameter_lun[0].
-    ux_slave_class_storage_media_write = USBD_STORAGE_Write;
-
-  storage_parameter.ux_slave_class_storage_parameter_lun[0].
-    ux_slave_class_storage_media_flush = USBD_STORAGE_Flush;
-
-  storage_parameter.ux_slave_class_storage_parameter_lun[0].
-    ux_slave_class_storage_media_status = USBD_STORAGE_Status;
-
-  storage_parameter.ux_slave_class_storage_parameter_lun[0].
-    ux_slave_class_storage_media_notification = USBD_STORAGE_Notification;
-
-  /* USER CODE BEGIN STORAGE_PARAMETER */
-
-  /* USER CODE END STORAGE_PARAMETER */
-
-  /* Get storage configuration number */
-  storage_configuration_number = USBD_Get_Configuration_Number(CLASS_TYPE_MSC, 0);
-
-  /* Find storage interface number */
-  storage_interface_number = USBD_Get_Interface_Number(CLASS_TYPE_MSC, 0);
-
-  /* Initialize the device storage class */
-  if (ux_device_stack_class_register(_ux_system_slave_class_storage_name,
-                                     ux_device_class_storage_entry,
-                                     storage_configuration_number,
-                                     storage_interface_number,
-                                     &storage_parameter) != UX_SUCCESS)
+  /* Register Audio Control Interface (0) */
+  if (ux_device_stack_class_register((UCHAR *)"ux_device_class_audio",
+                                     ux_device_class_audio_entry,
+                                     1, /* Configuration 1 */
+                                     0, /* Interface 0 */
+                                     &audio_parameter) != UX_SUCCESS)
   {
-    /* USER CODE BEGIN USBX_DEVICE_STORAGE_REGISTER_ERROR */
     return UX_ERROR;
-    /* USER CODE END USBX_DEVICE_STORAGE_REGISTER_ERROR */
+  }
+
+  /* Register Audio Streaming OUT Interface (1) */
+  if (ux_device_stack_class_register((UCHAR *)"ux_device_class_audio",
+                                     ux_device_class_audio_entry,
+                                     1, /* Configuration 1 */
+                                     1, /* Interface 1 */
+                                     &audio_parameter) != UX_SUCCESS)
+  {
+    return UX_ERROR;
+  }
+
+  /* Register Audio Streaming IN Interface (2) */
+  if (ux_device_stack_class_register((UCHAR *)"ux_device_class_audio",
+                                     ux_device_class_audio_entry,
+                                     1, /* Configuration 1 */
+                                     2, /* Interface 2 */
+                                     &audio_parameter) != UX_SUCCESS)
+  {
+    return UX_ERROR;
   }
 
   /* USER CODE BEGIN MX_USBX_Device_Init1 */
